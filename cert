@@ -1,0 +1,17 @@
+Generate a CA root certificate for kafka
+----------------------------------------
+openssl req -new \
+ -x509 -sha256 \
+ -keyout ca-key \
+ -out ca-root-cert \
+ -days 3650 -nodes \
+ -subj "/C=IN/ST=ODISHA/L=BBSR/O=Aashayein/CN=ca-root-cert"
+
+
+openssl req -new \
+ -passin pass:aashayeincakafka
+ -x509 -sha256 \
+ -keyout ca-key \
+ -out ca-root-cert \
+ -days 3650 -nodes \
+ -subj "/C=IN/ST=ODISHA/L=BBSR/O=Aashayein/CN=ca-root-cert"
