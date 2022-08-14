@@ -42,6 +42,10 @@ if [[ -z "$INTERNAL_PORT" ]]; then
     INTERNAL_PORT=9094
 fi
 
+if [[ -z "$PROMETHEUS_PORT" ]]; then
+    PROMETHEUS_PORT=9090
+fi
+
 if [[ -z "$CONTROLLER_REPLICAS" ]]; then
     CONTROLLER_REPLICAS=3
 fi
@@ -184,6 +188,51 @@ fi
 if [[ -z "$CA_CERT_PASSWORD" ]]; then
     CA_CERT_PASSWORD="aashayeincakafka"
 fi
+
+if [[ -z "$METRIC_REPORTERS" ]]; then
+    METRIC_REPORTERS="com.linkedin.kafka.cruisecontrol.metricsreporter.CruiseControlMetricsReporter"
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_TOPIC_AUTO_CREATE" ]]; then
+    CRUISE_CONTROL_METRICS_TOPIC_AUTO_CREATE="true"
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_TOPIC_NUM_PARTITIONS" ]]; then
+    CRUISE_CONTROL_METRICS_TOPIC_NUM_PARTITIONS="1"
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_TOPIC_REPLICATION_FACTOR" ]]; then
+    CRUISE_CONTROL_METRICS_TOPIC_REPLICATION_FACTOR="1"
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_TOPIC_MIN_INSYNC_REPLICAS" ]]; then
+    CRUISE_CONTROL_METRICS_TOPIC_MIN_INSYNC_REPLICAS="1"
+fi
+
+if [[ -z "$CC_METRICS_REPORTER_BOOTSTRAP_SERVERS" ]]; then
+    CC_METRICS_REPORTER_BOOTSTRAP_SERVERS=""
+    for (( i=0; i<$CONTROLLER_REPLICAS; i++))
+    do
+        CC_METRICS_REPORTER_BOOTSTRAP_SERVERS+="broker-$i.broker-svc.$NAMESPACE.svc.cluster.local:$PORT"
+
+        if [ $i != `expr $CONTROLLER_REPLICAS - 1` ] 
+        then
+            CC_METRICS_REPORTER_BOOTSTRAP_SERVERS+="," 
+        fi
+    done
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_REPORTER_BOOTSTRAP_SERVERS" ]]; then
+    CRUISE_CONTROL_METRICS_REPORTER_BOOTSTRAP_SERVERS=$CC_METRICS_REPORTER_BOOTSTRAP_SERVERS
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_REPORTER_SECURITY_PROTOCOL" ]]; then
+    CRUISE_CONTROL_METRICS_REPORTER_SECURITY_PROTOCOL="SSL"
+fi
+
+if [[ -z "$CRUISE_CONTROL_METRICS_TOPIC" ]]; then
+    CRUISE_CONTROL_METRICS_TOPIC="__CruiseControlMetrics"
+fi
 # ==================================== Create Truststore and Keystore ==================================== #
 #https://github.com/confluentinc/confluent-platform-security-tools/blob/master/kafka-generate-ssl-automatic.sh
 
@@ -285,6 +334,14 @@ sed -i "s/__ssl.truststore.password__/$SSL_TRUSTSTORE_PASSWORD/" $CONFIG_PATH
 sed -i "s/__ssl.keystore.location__/$ESCAPED_SSL_KEYSTORE_LOCATION/" $CONFIG_PATH
 sed -i "s/__ssl.keystore.password__/$SSL_KEYSTORE_PASSWORD/" $CONFIG_PATH
 sed -i "s/__ssl.key.password__/$SSL_KEY_PASSWORD/" $CONFIG_PATH
+sed -i "s/__metric.reporters__/$METRIC_REPORTERS/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.topic.auto.create__/$CRUISE_CONTROL_METRICS_TOPIC_AUTO_CREATE/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.topic.num.partitions__/$CRUISE_CONTROL_METRICS_TOPIC_NUM_PARTITIONS/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.topic.replication.factor__/$CRUISE_CONTROL_METRICS_TOPIC_REPLICATION_FACTOR/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.topic.min.insync.replicas__/$CRUISE_CONTROL_METRICS_TOPIC_MIN_INSYNC_REPLICAS/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.reporter.bootstrap.servers__/$CRUISE_CONTROL_METRICS_REPORTER_BOOTSTRAP_SERVERS/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.reporter.security.protocol__/$CRUISE_CONTROL_METRICS_REPORTER_SECURITY_PROTOCOL/" $CONFIG_PATH
+sed -i "s/__cruise.control.metrics.topic__/$CRUISE_CONTROL_METRICS_TOPIC/" $CONFIG_PATH
 # ==================================== Print Configs ==================================== #
 printf "==================================== Start Configs ====================================\n"
 cat $CONFIG_PATH
@@ -305,5 +362,6 @@ $KAFKA_HOME/bin/kafka-storage.sh info -c $CONFIG_PATH
 
 
 #export KAFKA_HEAP_OPTS="-Xmx200M –Xms100M"
+export KAFKA_OPTS="-javaagent:$KAFKA_HOME/libs/jmx_prometheus_javaagent-$PROMETHEUS_JAVA_AGENT_VERSION.jar=$PROMETHEUS_PORT:$KAFKA_HOME/config/kraft/prometheus.yml"
 
 exec $KAFKA_HOME/bin/kafka-server-start.sh $CONFIG_PATH
